@@ -68,7 +68,9 @@ var RowGroup = function ( dt, opts ) {
 	this.s = {
 		dt: new DataTable.Api( dt )
 	};
-
+	
+	this.collapsedGroups = {};
+	
 	// DOM items
 	this.dom = {
 
@@ -287,9 +289,14 @@ $.extend( RowGroup.prototype, {
 			if ( this.c.startRender ) {
 				display = this.c.startRender.call( this, dt.rows(rows), groupName, level );
 				row = this._rowWrap( display, this.c.startClassName, level );
-
+			    	// expand the specified group
+			    	if (this.c.sOpenGroup!== null && this.c.sOpenGroup===groupName) {
+					dt.rows(rows).nodes().each( (r) => r.style.display = '');
+			    	}
 				if ( row ) {
 					row.insertBefore( dt.row( rows[0] ).node() );
+					this.c.fnOnGroupCompleted( this, row, dt.rows(rows), groupName, level );
+                        		row.click(this,this._fnOnGroupClick);
 				}
 			}
 
@@ -307,7 +314,12 @@ $.extend( RowGroup.prototype, {
 			}
 		}
 	},
-
+        _fnOnGroupClick: function ( t ) {
+            //var group = this.innerText;
+            var group = this.dataset.name;
+            t.data.collapsedGroups[group] = !t.data.collapsedGroups[group];
+            t.data.s.dt.draw(false);
+        },
 	/**
 	 * Take a rendered value from an end user and make it suitable for display
 	 * as a row, by wrapping it in a row, or detecting that it is a row.
@@ -334,8 +346,11 @@ $.extend( RowGroup.prototype, {
 		}
 		else if (display instanceof $ && display.length && display[0].nodeName.toLowerCase() === 'tr') {
 			row = display;
+			var group = display[0].dataset.name;
 		}
 		else {
+			var group = display;
+                    	display = this.c.fnGroupLabelFormat(display, className, level);
 			row = $('<tr/>')
 				.append(
 					$('<td/>')
@@ -345,6 +360,7 @@ $.extend( RowGroup.prototype, {
 		}
 
 		return row
+			.attr('data-name', group)
 			.addClass( this.c.className )
 			.addClass( className )
 			.addClass( 'dtrg-level-'+level );
@@ -360,6 +376,10 @@ $.extend( RowGroup.prototype, {
  * @static
  */
 RowGroup.defaults = {
+	 /* Boolean
+         * Use accordon grouping
+         */
+        bExpandSingleGroup: false,
 	/**
 	 * Class to apply to grouping rows - applied to both the start and
 	 * end grouping rows.
@@ -403,13 +423,34 @@ RowGroup.defaults = {
 	 */
 	startClassName: 'dtrg-start',
 
+        /*
+         *
+         */
+        bHideGroupingColumn:true,
+        /*
+         *
+         */
+        sOpenGroup:null,
 	/**
 	 * Start grouping label function
 	 * @function
 	 */
 	startRender: function ( rows, group ) {
+		if (group===null||group==='') {
+                	group = this.c.emptyDataGroup;
+                	var collapsed = true;
+            	}else{
+                	var collapsed = !!this.collapsedGroups[group];
+            	}
+            	rows.nodes().each( (r) => r.style.display = collapsed ?  '' :'none' );
 		return group;
-	}
+	},
+	fnGroupLabelFormat: function (display, className, level){
+            return display;
+        },
+        fnOnGroupCompleted: function (t, r, rows, group,level){
+            r[0].children[0].innerHTML+= ' ('+rows.count()+')';
+        }
 };
 
 
